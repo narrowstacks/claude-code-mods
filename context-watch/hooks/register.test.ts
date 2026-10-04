@@ -35,3 +35,13 @@ test('draws the pane on terminal and desktop', async ($) => {
     expect((await ui.findAll({ type: 'Button', key: 'close' })).length).toBe(1)
   }
 })
+
+test('the band passes through what is beneath when figures are missing', async ($, on) => {
+  on('ui.render', { component: 'AbovePrompt' }, (t, e) => {
+    const { Text } = t.ui.resolve(e)
+
+    return h(Text, null, 'beneath') as never
+  })
+  const ui = await $.ui.mount({ plugin: 'context-watch', surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10 } as never })
+  expect((await ui.findAll({ type: 'Text', text: 'beneath' })).length).toBe(1)
+})

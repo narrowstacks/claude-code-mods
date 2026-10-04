@@ -47,7 +47,6 @@ export const statusText = (usage: SessionUsage) => {
 
 const refresh = async ($: EngineInterface) => {
   const usage = await $.session.usage()
-  $.ui.status(statusText(usage) || undefined)
   await update($, tick, n => n + 1)
 
   const percent = usage.context.percent
@@ -78,6 +77,8 @@ export const register: Register = on => {
       name: 'ctx',
       description: 'Context window pane: what is using tokens',
     })
+    // Clears the status line an earlier version of this mod pinned.
+    $.ui.status(undefined)
     refreshLater($)
 
     return next(e)
@@ -126,6 +127,39 @@ export const register: Register = on => {
     await update($, tick, n => n + 1)
 
     return { text: 'Context pane opened.' }
+  })
+
+  // One line above the prompt, stacked over whatever the plugins beneath draw there.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const below = await next(e)
+    if (e.props.hasSurvey) {
+      return below
+    }
+
+    await read($, tick)
+    const usage = await $.session.usage().catch(() => undefined)
+    const percent = usage?.context.percent
+    if (usage === undefined || percent === undefined) {
+      return below
+    }
+
+    const { Box, Text } = $.ui.resolve(e)
+    const extras = statusText(usage).split('  ·  ').slice(1)
+
+    return (
+      <Box flexDirection="column">
+        <Box>
+          <Text dimColor>ctx </Text>
+          <Text color={heat(percent)}>{bar(percent / 100, 10)}</Text>
+          <Text color={percent >= 60 ? heat(percent) : undefined}> {percent}%</Text>
+          <Text dimColor>
+            {' '}{formatK(usage.context.tokens ?? 0)}/{formatK(usage.context.window)}
+            {extras.map(part => `  ·  ${part}`).join('')}
+          </Text>
+        </Box>
+        {below}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
