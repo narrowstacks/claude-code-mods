@@ -1,0 +1,1 @@
+{ "name": "context-watch", "version": "0.1.0", "description": "Context fill, cost and rate limits in the status line; threshold toasts; compaction that keeps edited files; /ctx breakdown", "types": "./types/index.d.ts" }

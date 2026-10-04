@@ -1,0 +1,1 @@
+{ "name": "house-style", "version": "0.1.0", "description": "Enforces the no-em-dash rule: a system prompt section, a reminder to the model after a write that adds one, a toast when a reply uses one" }
