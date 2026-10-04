@@ -1,0 +1,1 @@
+{ "name": "zsh-safe", "version": "0.1.0", "description": "Quotes glob flags zsh would expand (--include=*.ts) and keeps a grep that finds nothing from failing the command" }
