@@ -1,6 +1,6 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
-import { labelFor, shortenCommand, spinnerText } from './register'
+import { formatElapsed, labelFor, remoteOf, shortenCommand, spinnerText } from './register'
 
 test('labels common tools', async () => {
   expect(labelFor('Bash', { command: 'bun test --watch\nmore' })).toEqual({ label: '$ bun test --watch' })
@@ -24,6 +24,7 @@ test('fits the width: detail only when whole, label clipped last', async () => {
 })
 
 test('spinner shows the running tool, then falls back', async ($, on) => {
+  mock.clock(on)
   const props = { word: 'Baking', message: null, suffix: '…', mode: 'tool-use' as const }
   let shown: string | null = null
   let during: string | null = null
@@ -46,4 +47,19 @@ test('spinner shows the running tool, then falls back', async ($, on) => {
 
   await $.ui.render({ surface: 'terminal', component: 'Spinner', requestId: 'main', props })
   expect(shown).toBe('Baking')
+})
+
+test('ssh shows the host', async () => {
+  expect(remoteOf("ssh -p 22 root@seedbox 'systemctl status pveproxy'")).toEqual({ host: 'seedbox', remote: 'systemctl status pveproxy' })
+  expect(labelFor('Bash', { command: "ssh seedbox 'df -h'" })).toEqual({ label: 'seedbox › df -h' })
+  expect(labelFor('Bash', { command: 'ssh vesta uptime', description: 'Check uptime' })).toEqual({ label: 'Check uptime', detail: 'on vesta' })
+  expect(labelFor('Bash', { command: 'ssh seedbox uptime', description: 'Check uptime on seedbox' })).toEqual({ label: 'Check uptime on seedbox' })
+  expect(remoteOf('git status')).toBe(null)
+})
+
+test('elapsed joins the label after 15s', async () => {
+  expect(formatElapsed(100_000)).toBe('1m 40s')
+  expect(spinnerText({ label: 'Build the app', detail: 'xcodebuild' }, 0, 80, 5_000)).toBe('Build the app · xcodebuild')
+  expect(spinnerText({ label: 'Build the app', detail: 'xcodebuild' }, 0, 80, 100_000)).toBe('Build the app · xcodebuild · 1m 40s')
+  expect(spinnerText({ label: 'Build the app', detail: 'xcodebuild' }, 0, 30, 100_000)).toBe('Build the app · 1m 40s')
 })

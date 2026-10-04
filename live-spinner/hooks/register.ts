@@ -4,6 +4,10 @@ import type { Register } from 'claude-code'
 import type { Running } from '../types'
 
 const running = atom({ plugin: 'live-spinner', key: 'running' } as const, [] as Running[])
+const tick = atom({ plugin: 'live-spinner', key: 'tick' } as const, 0)
+
+// A tool's own elapsed time joins its label once it has run this long.
+const SHOW_ELAPSED_MS = 15_000
 
 // Room the engine keeps on the spinner line for the glyph, elapsed time and tokens.
 const RESERVED = 34
@@ -35,6 +39,25 @@ export const shortenCommand = (command: string) => {
   return `${(head ?? '').trim()}${rest.length > 0 ? ' | …' : ''}`
 }
 
+// `ssh [options] host command`: the host and what it runs there.
+export const remoteOf = (command: string): { host: string; remote: string } | null => {
+  const match = command.match(/^ssh\s+((?:-[a-zA-Z]+(?:\s+(?!-)\S+)?\s+)*)([^\s-]\S*)\s*(.*)$/)
+  if (match === null) {
+    return null
+  }
+
+  const host = (match[2] ?? '').replace(/^.*@/, '')
+  const remote = (match[3] ?? '').trim().replace(/^(['"])([\s\S]*)\1$/, '$2')
+
+  return { host, remote: remote === '' ? 'shell' : remote }
+}
+
+export const formatElapsed = (ms: number) => {
+  const seconds = Math.floor(ms / 1000)
+
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
+}
+
 export const labelFor = (tool: string, input: object): Pick<Running, 'label' | 'detail'> => {
   const path = field(input, 'file_path') ?? field(input, 'notebook_path')
 
@@ -42,10 +65,18 @@ export const labelFor = (tool: string, input: object): Pick<Running, 'label' | '
     case 'Bash': {
       const command = shortenCommand(field(input, 'command') ?? '')
       const description = field(input, 'description')
+      const ssh = remoteOf(command)
 
-      return description !== undefined
-        ? { label: firstLine(description), detail: command }
-        : { label: `$ ${command}` }
+      if (description !== undefined) {
+        const label = firstLine(description)
+        if (ssh === null) {
+          return { label, detail: command }
+        }
+
+        return label.includes(ssh.host) ? { label } : { label, detail: `on ${ssh.host}` }
+      }
+
+      return ssh !== null ? { label: `${ssh.host} › ${ssh.remote}` } : { label: `$ ${command}` }
     }
     case 'Read':
       return { label: `Reading ${base(path ?? '')}` }
@@ -77,9 +108,11 @@ export const labelFor = (tool: string, input: object): Pick<Running, 'label' | '
   return { label: tool }
 }
 
-// The label always shows; the detail joins it only when both fit whole.
-export const spinnerText = (call: Pick<Running, 'label' | 'detail'>, more: number, width: number) => {
-  const suffix = more > 0 ? ` (+${more})` : ''
+// The label always shows; the elapsed time and the detail join it, in that
+// order, only when they fit whole.
+export const spinnerText = (call: Pick<Running, 'label' | 'detail'>, more: number, width: number, elapsedMs = 0) => {
+  const time = elapsedMs >= SHOW_ELAPSED_MS ? ` · ${formatElapsed(elapsedMs)}` : ''
+  const suffix = `${time}${more > 0 ? ` (+${more})` : ''}`
   const room = Math.max(MIN_WIDTH, width - suffix.length)
   const full = call.detail !== undefined ? `${call.label} · ${call.detail}` : call.label
   const text = full.length <= room ? full : clip(call.label, room)
@@ -88,8 +121,21 @@ export const spinnerText = (call: Pick<Running, 'label' | 'detail'>, more: numbe
 }
 
 export const register: Register = on => {
+  // Redraws the spinner each second while a tool has run long enough to show its time.
+  on('session.start', async ($, e, next) => {
+    $.clock.every(1000, async () => {
+      const list = await read($, running)
+      const now = await $.clock.now()
+      if (list.some(call => now - call.startedAt >= SHOW_ELAPSED_MS)) {
+        await update($, tick, n => n + 1)
+      }
+    })
+
+    return next(e)
+  })
+
   on('tool.call', async ($, e, next) => {
-    const call: Running = { id: e.tool_use_id, ...labelFor(e.tool, e) }
+    const call: Running = { id: e.tool_use_id, ...labelFor(e.tool, e), startedAt: await $.clock.now() }
     await update($, running, list => [...list, call])
 
     try {
@@ -108,6 +154,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    await read($, tick)
     const list = await read($, running)
     const latest = list.at(-1)
 
@@ -116,7 +163,7 @@ export const register: Register = on => {
     }
 
     const width = (e.viewport?.columns ?? 80) - RESERVED - e.props.word.length
-    const message = spinnerText(latest, list.length - 1, width)
+    const message = spinnerText(latest, list.length - 1, width, (await $.clock.now()) - latest.startedAt)
 
     return next({ ...e, props: { ...e.props, message } })
   })
