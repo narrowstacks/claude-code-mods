@@ -9,7 +9,14 @@ Function-hook mods for Claude Code. Each folder is one plugin.
 | `pr-watch` | Tracks PRs from `gh pr` / `gt submit` / `git push` output, shows checks above the prompt, toasts on green/red/merged, blocks foreground CI polling loops; `/prs` |
 | `house-style` | No em dashes: system prompt rule, reminder to the model after a write that adds one, toast when a reply uses one |
 
-## Load
+## Install
+
+```sh
+claude plugin marketplace add <owner>/claude-code-mods   # or a local path to this repo
+claude plugin install context-watch@claude-code-mods
+```
+
+Or load from a checkout without installing:
 
 ```sh
 claude --plugin-dir ./context-watch --plugin-dir ./live-spinner
