@@ -1,0 +1,6 @@
+{
+  "name": "worktrees",
+  "version": "0.1.0",
+  "description": "/worktrees pane: each git worktree with branch, uncommitted changes, ahead/behind and PR state; removes clean worktrees whose PR is merged or closed",
+  "types": "./types/index.d.ts"
+}
