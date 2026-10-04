@@ -12,7 +12,7 @@ Function-hook mods for Claude Code. Each folder is one plugin.
 ## Install
 
 ```sh
-claude plugin marketplace add <owner>/claude-code-mods   # or a local path to this repo
+claude plugin marketplace add narrowstacks/claude-code-mods
 claude plugin install context-watch@claude-code-mods
 ```
 
