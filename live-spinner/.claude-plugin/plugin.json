@@ -1,1 +1,6 @@
-{ "name": "live-spinner", "version": "0.1.0", "description": "Spinner says what is actually running: the Bash command, the file being read or edited, the search, the subagent", "types": "./types/index.d.ts" }
+{
+  "name": "live-spinner",
+  "version": "0.4.0",
+  "description": "Spinner says what is actually running: the Bash command, the file being read or edited, the search, the subagent",
+  "types": "./types/index.d.ts"
+}
