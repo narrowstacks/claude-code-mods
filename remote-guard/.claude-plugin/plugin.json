@@ -1,0 +1,6 @@
+{
+  "name": "remote-guard",
+  "version": "0.1.0",
+  "description": "Asks before a destructive command runs on another machine over ssh (restarts, deletes, kills, reboots)",
+  "types": "./types/index.d.ts"
+}
