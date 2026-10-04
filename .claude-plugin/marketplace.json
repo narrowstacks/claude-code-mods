@@ -56,6 +56,21 @@
       "name": "xcode-status",
       "source": "./xcode-status",
       "description": "In Xcode projects only: one line with the last build and test result and the booted simulator; flags 0-test runs; blocks a second xcodebuild while one runs"
+    },
+    {
+      "name": "worktrees",
+      "source": "./worktrees",
+      "description": "/worktrees pane: each git worktree with branch, uncommitted changes, ahead/behind and PR state; removes clean worktrees whose PR is merged or closed"
+    },
+    {
+      "name": "pr-rules",
+      "source": "./pr-rules",
+      "description": "Blocks gh pr create / gt submit when a repo with an [Unreleased] changelog has no entry on the branch, and (where the repo asks for it) when the PR carries no labels"
+    },
+    {
+      "name": "agent-models",
+      "source": "./agent-models",
+      "description": "Pins the model each subagent type runs on, set in /config or with /agent-models"
     }
   ]
 }
