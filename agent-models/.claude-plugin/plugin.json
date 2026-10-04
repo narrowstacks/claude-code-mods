@@ -1,0 +1,48 @@
+{
+  "name": "agent-models",
+  "version": "0.1.0",
+  "description": "Pins the model each subagent type runs on, set in /config or with /agent-models",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "explore": {
+      "type": "string",
+      "title": "Explore agents",
+      "description": "Model for Explore subagents. inherit leaves the choice to the agent definition, then the main model.",
+      "default": "haiku",
+      "options": ["inherit", "haiku", "sonnet", "opus", "fable"]
+    },
+    "generalPurpose": {
+      "type": "string",
+      "title": "general-purpose agents",
+      "description": "Model for general-purpose subagents.",
+      "default": "inherit",
+      "options": ["inherit", "haiku", "sonnet", "opus", "fable"]
+    },
+    "plan": {
+      "type": "string",
+      "title": "Plan agents",
+      "description": "Model for Plan subagents.",
+      "default": "inherit",
+      "options": ["inherit", "haiku", "sonnet", "opus", "fable"]
+    },
+    "other": {
+      "type": "string",
+      "title": "Every other type",
+      "description": "Model for any subagent type not named above or in Custom.",
+      "default": "inherit",
+      "options": ["inherit", "haiku", "sonnet", "opus", "fable"]
+    },
+    "custom": {
+      "type": "string",
+      "title": "Custom",
+      "description": "More types, as type=model pairs separated by commas: code-reviewer=opus, claude-code-guide=haiku",
+      "default": ""
+    },
+    "force": {
+      "type": "boolean",
+      "title": "Override explicit models",
+      "description": "Also replace a model the caller asked for. Off: a pin applies only when no model was given.",
+      "default": false
+    }
+  }
+}
