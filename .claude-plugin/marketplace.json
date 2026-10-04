@@ -1,11 +1,61 @@
 {
   "name": "claude-code-mods",
-  "owner": { "name": "aaron" },
-  "metadata": { "description": "Function-hook mods for Claude Code: context gauge, live spinner, PR watcher, house style" },
+  "owner": {
+    "name": "aaron"
+  },
+  "metadata": {
+    "description": "Function-hook mods for Claude Code: context gauge, live spinner, PR watcher, house style"
+  },
   "plugins": [
-    { "name": "context-watch", "source": "./context-watch", "description": "Context fill, cost and rate limits in the status line; threshold toasts; compaction that keeps edited files; /ctx pane" },
-    { "name": "live-spinner", "source": "./live-spinner", "description": "Spinner says what is actually running" },
-    { "name": "pr-watch", "source": "./pr-watch", "description": "Tracks PRs the session touches, shows checks above the prompt, toasts on green/red/merged" },
-    { "name": "house-style", "source": "./house-style", "description": "Enforces the no-em-dash rule" }
+    {
+      "name": "context-watch",
+      "source": "./context-watch",
+      "description": "Context fill, cost and rate limits in the status line; threshold toasts; compaction that keeps edited files; /ctx pane"
+    },
+    {
+      "name": "live-spinner",
+      "source": "./live-spinner",
+      "description": "Spinner says what is actually running"
+    },
+    {
+      "name": "pr-watch",
+      "source": "./pr-watch",
+      "description": "Tracks PRs the session touches, shows checks above the prompt, toasts on green/red/merged"
+    },
+    {
+      "name": "house-style",
+      "source": "./house-style",
+      "description": "Enforces the no-em-dash rule"
+    },
+    {
+      "name": "handoff",
+      "source": "./handoff",
+      "description": "/handoff saves a state note, clears, and carries the note into the fresh context"
+    },
+    {
+      "name": "agent-jobs",
+      "source": "./agent-jobs",
+      "description": "/jobs pane: running subagents and background shells with elapsed time and Stop"
+    },
+    {
+      "name": "zsh-safe",
+      "source": "./zsh-safe",
+      "description": "Quotes glob flags zsh would expand (--include=*.ts) and keeps a grep that finds nothing from failing the command"
+    },
+    {
+      "name": "pm-guard",
+      "source": "./pm-guard",
+      "description": "Steers npm/npx/yarn to the package manager the repo's lockfile names (bun or pnpm), bun where there is none"
+    },
+    {
+      "name": "remote-guard",
+      "source": "./remote-guard",
+      "description": "Asks before a destructive command runs on another machine over ssh (restarts, deletes, kills, reboots)"
+    },
+    {
+      "name": "xcode-status",
+      "source": "./xcode-status",
+      "description": "In Xcode projects only: one line with the last build and test result and the booted simulator; flags 0-test runs; blocks a second xcodebuild while one runs"
+    }
   ]
 }
