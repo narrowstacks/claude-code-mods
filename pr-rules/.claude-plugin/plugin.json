@@ -1,0 +1,13 @@
+{
+  "name": "pr-rules",
+  "version": "0.1.0",
+  "description": "Blocks gh pr create / gt submit when a repo with an [Unreleased] changelog has no entry on the branch, and (where the repo asks for it) when the PR carries no labels",
+  "userConfig": {
+    "requireLabels": {
+      "type": "boolean",
+      "title": "Require labels on every PR",
+      "description": "Block gh pr create without --label in every repo, not only repos whose CLAUDE.md asks to label every PR.",
+      "default": false
+    }
+  }
+}
