@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { formatElapsed, labelFor, remoteOf, shortenCommand, spinnerText } from './register'
+import { formatElapsed, labelFor, remoteOf, shortenCommand, signingCommand, spinnerText } from './register'
 
 test('labels common tools', async () => {
   expect(labelFor('Bash', { command: 'bun test --watch\nmore' })).toEqual({ label: '$ bun test --watch' })
@@ -62,4 +62,36 @@ test('elapsed joins the label after 15s', async () => {
   expect(spinnerText({ label: 'Build the app', detail: 'xcodebuild' }, 0, 80, 5_000)).toBe('Build the app · xcodebuild')
   expect(spinnerText({ label: 'Build the app', detail: 'xcodebuild' }, 0, 80, 100_000)).toBe('Build the app · xcodebuild · 1m 40s')
   expect(spinnerText({ label: 'Build the app', detail: 'xcodebuild' }, 0, 30, 100_000)).toBe('Build the app · 1m 40s')
+})
+
+test('spots git commands that may sign', async () => {
+  expect(signingCommand('git commit -qm "x"')).toBe('commit')
+  expect(signingCommand('cd repo && git -C . tag v1')).toBe('tag')
+  expect(signingCommand('git push')).toBe(null)
+  expect(signingCommand('git log --oneline')).toBe(null)
+})
+
+test('a quiet signed commit shows the signing hint', async ($, on) => {
+  const clock = mock.clock(on)
+  on('process.run', () => ({ value: { exitCode: 0, stdout: 'true\n', stderr: '' } }) as never)
+  const props = { word: 'Baking', message: null, suffix: '…', mode: 'tool-use' as const }
+  let shown: string | null = null
+  on('ui.render', { component: 'Spinner' }, (t, e) => {
+    shown = e.props.message ?? e.props.word
+    const { Text } = t.ui.resolve(e)
+
+    return h(Text, null, shown) as never
+  })
+  let early: string | null = null
+  on('tool.call', async () => {
+    await $.ui.render({ surface: 'terminal', component: 'Spinner', requestId: 'main', props })
+    early = shown
+    await clock.advance(6_000)
+    await $.ui.render({ surface: 'terminal', component: 'Spinner', requestId: 'main', props })
+
+    return { result: { stdout: '', stderr: '', interrupted: false } as never }
+  })
+  await $.tool.call({ tool: 'Bash', command: 'git commit -qm x', description: 'Commit the fix' })
+  expect(early).toBe('Commit the fix · git commit -qm x')
+  expect(shown).toBe('Waiting for signing approval')
 })

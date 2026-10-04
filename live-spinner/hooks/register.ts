@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import type { Running } from '../types'
 
@@ -8,6 +8,10 @@ const tick = atom({ plugin: 'live-spinner', key: 'tick' } as const, 0)
 
 // A tool's own elapsed time joins its label once it has run this long.
 const SHOW_ELAPSED_MS = 15_000
+// A signed commit or tag this quiet is usually waiting on the signer's approval prompt.
+const SIGNING_HINT_MS = 5_000
+
+const SIGNED_GIT = /\bgit\s+(?:-C\s+\S+\s+)?(commit|tag|merge|rebase|cherry-pick|revert|am)\b/
 
 // Room the engine keeps on the spinner line for the glyph, elapsed time and tokens.
 const RESERVED = 34
@@ -120,13 +124,29 @@ export const spinnerText = (call: Pick<Running, 'label' | 'detail'>, more: numbe
   return `${text}${suffix}`
 }
 
+// The git subcommand when `command` runs one that may sign, else null.
+export const signingCommand = (command: string) => command.match(SIGNED_GIT)?.[1] ?? null
+
+const willSign = async ($: EngineInterface, command: string) => {
+  const sub = signingCommand(command)
+  if (sub === null) return false
+  if (/\s-S\b|--gpg-sign\b|\btag\s+(-\w*s|--sign)\b/.test(command)) return true
+
+  const key = sub === 'tag' ? 'tag.gpgsign' : 'commit.gpgsign'
+  const dir = command.match(/^\s*cd\s+("[^"]+"|'[^']+'|\S+)\s*(&&|;)/)?.[1]?.replace(/^["']|["']$/g, '')
+  const config = await $.process.run(['git', 'config', '--get', key], dir !== undefined && !dir.startsWith('~') ? { cwd: dir } : {}).catch(() => undefined)
+
+  return config?.stdout.trim() === 'true'
+}
+
 export const register: Register = on => {
   // Redraws the spinner each second while a tool has run long enough to show its time.
   on('session.start', async ($, e, next) => {
     $.clock.every(1000, async () => {
       const list = await read($, running)
       const now = await $.clock.now()
-      if (list.some(call => now - call.startedAt >= SHOW_ELAPSED_MS)) {
+      const isDue = (call: Running) => now - call.startedAt >= (call.isSigning === true ? SIGNING_HINT_MS : SHOW_ELAPSED_MS)
+      if (list.some(isDue)) {
         await update($, tick, n => n + 1)
       }
     })
@@ -135,7 +155,8 @@ export const register: Register = on => {
   })
 
   on('tool.call', async ($, e, next) => {
-    const call: Running = { id: e.tool_use_id, ...labelFor(e.tool, e), startedAt: await $.clock.now() }
+    const isSigning = e.tool === 'Bash' && (await willSign($, e.command).catch(() => false))
+    const call: Running = { id: e.tool_use_id, ...labelFor(e.tool, e), startedAt: await $.clock.now(), isSigning }
     await update($, running, list => [...list, call])
 
     try {
@@ -163,7 +184,11 @@ export const register: Register = on => {
     }
 
     const width = (e.viewport?.columns ?? 80) - RESERVED - e.props.word.length
-    const message = spinnerText(latest, list.length - 1, width, (await $.clock.now()) - latest.startedAt)
+    const elapsed = (await $.clock.now()) - latest.startedAt
+    const shown = latest.isSigning === true && elapsed >= SIGNING_HINT_MS
+      ? { label: 'Waiting for signing approval', detail: latest.label }
+      : latest
+    const message = spinnerText(shown, list.length - 1, width, elapsed)
 
     return next({ ...e, props: { ...e.props, message } })
   })

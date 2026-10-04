@@ -1,4 +1,4 @@
-export type Running = { id: string; label: string; detail?: string; startedAt: number }
+export type Running = { id: string; label: string; detail?: string; startedAt: number; isSigning?: boolean }
 
 declare module 'claude-code' {
   interface PluginState {
