@@ -1,0 +1,6 @@
+{
+  "name": "xcode-status",
+  "version": "0.1.0",
+  "description": "In Xcode projects only: one line with the last build and test result and the booted simulator; flags 0-test runs; blocks a second xcodebuild while one runs",
+  "types": "./types/index.d.ts"
+}
