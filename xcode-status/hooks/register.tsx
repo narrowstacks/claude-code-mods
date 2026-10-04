@@ -4,7 +4,9 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { BuildResult } from '../types'
 
 const project = atom({ plugin: 'xcode-status', key: 'project' } as const, null as string | null)
-const last = atom({ plugin: 'xcode-status', key: 'last' } as const, null as BuildResult | null)
+const root = atom({ plugin: 'xcode-status', key: 'root' } as const, null as string | null)
+// Last result per project root, so moving away and back keeps it.
+const results = atom({ plugin: 'xcode-status', key: 'results' } as const, {} as Record<string, BuildResult>)
 const simulator = atom({ plugin: 'xcode-status', key: 'simulator' } as const, null as string | null)
 const tick = atom({ plugin: 'xcode-status', key: 'tick' } as const, 0)
 
@@ -85,18 +87,19 @@ export const ago = (ms: number) => {
 }
 
 const detect = async ($: EngineInterface) => {
-  const root = await $.session.root()
-  const entries = await $.fs.list(root)
+  const dir = await $.session.root()
+  const entries = await $.fs.list(dir)
   const children: Record<string, Entry[]> = {}
   if (findXcodeProject(entries) === null) {
     for (const entry of entries) {
       if (entry.kind === 'dir' && !SKIP_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
-        children[entry.name] = await $.fs.list(`${root}/${entry.name}`).catch(() => [])
+        children[entry.name] = await $.fs.list(`${dir}/${entry.name}`).catch(() => [])
       }
     }
   }
   const name = findXcodeProject(entries, children)
   await update($, project, () => name)
+  await update($, root, () => (name === null ? null : dir))
 
   return name
 }
@@ -137,6 +140,17 @@ export const register: Register = on => {
     return next(e)
   })
 
+  on('command.run', { command: 'cd' }, async ($, e, next) => {
+    const moved = await next(e)
+    const before = await read($, project)
+    const name = await detect($).catch(() => before)
+    if (name !== null && name !== before) {
+      pollSimulator($).catch(() => undefined)
+    }
+
+    return moved
+  })
+
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     if ((await read($, project)) === null) {
       return next(e)
@@ -159,9 +173,10 @@ export const register: Register = on => {
     }
 
     const result = parseResult(ran.text ?? '', e.command)
-    if (result !== null) {
+    const dir = await read($, root)
+    if (result !== null && dir !== null) {
       const at = await $.clock.now()
-      await update($, last, () => ({ ...result, at, durationMs: at - startedAt }))
+      await update($, results, all => ({ ...all, [dir]: { ...result, at, durationMs: at - startedAt } }))
     }
     if (/\bsimctl\s+(boot|shutdown|erase)\b/.test(e.command)) {
       await pollSimulator($)
@@ -178,7 +193,8 @@ export const register: Register = on => {
     }
 
     await read($, tick)
-    const build = await read($, last)
+    const dir = await read($, root)
+    const build = dir === null ? null : ((await read($, results))[dir] ?? null)
     const sim = await read($, simulator)
     if (build === null && sim === null) {
       return below

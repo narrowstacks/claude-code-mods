@@ -11,6 +11,6 @@ export type BuildResult = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'xcode-status': { project: string | null; last: BuildResult | null; simulator: string | null; tick: number }
+    'xcode-status': { project: string | null; root: string | null; results: Record<string, BuildResult>; simulator: string | null; tick: number }
   }
 }

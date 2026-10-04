@@ -1,4 +1,4 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 import { ago, findXcodeProject, parseBooted, parseResult } from './register'
 
@@ -41,4 +41,32 @@ test('reads booted simulators', async () => {
 test('formats age', async () => {
   expect(ago(20_000)).toBe('just now')
   expect(ago(5 * 60_000)).toBe('5m ago')
+})
+
+test('/cd re-checks the project and keeps each project\'s result', async ($, on) => {
+  mock.clock(on)
+  let dir = '/w/app'
+  on('session.root', () => ({ value: dir }) as never)
+  on('fs.list', () => ({ value: dir === '/w/app' ? [{ name: 'App.xcodeproj', kind: 'dir', size: 0 }] : [] }) as never)
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '' } }) as never)
+  on('command.run', () => ({ text: '' }))
+  on('tool.call', () => ({ result: { stdout: '** BUILD SUCCEEDED **', stderr: '', interrupted: false }, text: '** BUILD SUCCEEDED **' }) as never)
+  on('ui.render', { component: 'AbovePrompt' }, (t, e) => {
+    const { Box } = t.ui.resolve(e)
+
+    return h(Box, null) as never
+  })
+
+  await $.command.run({ command: 'cd', args: '/w/app' } as never)
+  await $.tool.call({ tool: 'Bash', command: 'xcodebuild -scheme App build' })
+  const band = await $.ui.mount({ plugin: 'xcode-status', surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10 } as never })
+  expect((await band.findAll({ type: 'Text', text: /built/ })).length).toBe(1)
+
+  dir = '/w/web'
+  await $.command.run({ command: 'cd', args: '/w/web' } as never)
+  expect((await band.findAll({ type: 'Text', text: /built/ })).length).toBe(0)
+
+  dir = '/w/app'
+  await $.command.run({ command: 'cd', args: '/w/app' } as never)
+  expect((await band.findAll({ type: 'Text', text: /built/ })).length).toBe(1)
 })
