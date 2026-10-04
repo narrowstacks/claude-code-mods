@@ -1,0 +1,1 @@
+{ "name": "agent-jobs", "version": "0.1.0", "description": "/jobs pane: running subagents and background shells with elapsed time and Stop; a toast when background work finishes", "types": "./types/index.d.ts" }
