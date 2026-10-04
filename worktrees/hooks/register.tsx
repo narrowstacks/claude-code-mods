@@ -44,6 +44,9 @@ export const parseStatus = (text: string) => {
 export const canRemove = (row: WorktreeRow) =>
   !row.isMain && !row.isCurrent && row.dirty === 0 && (row.pr?.state === 'MERGED' || row.pr?.state === 'CLOSED')
 
+export const mergedRemovable = (list: readonly WorktreeRow[]) =>
+  list.filter(row => canRemove(row) && row.pr?.state === 'MERGED')
+
 const base = (path: string) => path.split('/').filter(Boolean).at(-1) ?? path
 
 const isInside = (dir: string, path: string) => dir === path || dir.startsWith(`${path}/`)
@@ -124,6 +127,34 @@ const remove = async ($: EngineInterface, row: WorktreeRow) => {
   await load($)
 }
 
+const removeMerged = async ($: EngineInterface) => {
+  const targets = mergedRemovable(await read($, rows))
+  if (targets.length === 0) {
+    return
+  }
+
+  const names = targets.map(row => row.name).join(', ')
+  const answer = await $.ui
+    .ask(`Remove ${targets.length} merged worktree${targets.length === 1 ? '' : 's'}?  ${names}`, { options: ['Remove all', 'Cancel'], header: 'Worktrees' })
+    .catch(() => 'Cancel')
+  if (answer !== 'Remove all') {
+    return
+  }
+
+  const root = await $.session.root()
+  const failed: string[] = []
+  for (const row of targets) {
+    const ran = await $.process.run(['git', '-C', root, 'worktree', 'remove', row.path]).catch(() => undefined)
+    if (ran?.exitCode !== 0) {
+      failed.push(row.name)
+    }
+  }
+
+  const removed = targets.length - failed.length
+  $.ui.toast(failed.length === 0 ? `Removed ${removed} worktree${removed === 1 ? '' : 's'}` : `Removed ${removed}; could not remove ${failed.join(', ')}`)
+  await load($)
+}
+
 const PR_COLOR: Record<PrState, string> = { MERGED: 'green', OPEN: 'yellow', CLOSED: 'red' }
 
 export const register: Register = on => {
@@ -147,6 +178,7 @@ export const register: Register = on => {
     const failed = await read($, error)
     const nameWidth = Math.min(24, Math.max(8, ...list.map(row => row.name.length)))
     const branchWidth = Math.max(10, Math.min(40, (e.viewport?.columns ?? 80) - nameWidth - 34))
+    const merged = mergedRemovable(list).length
     const clip = (text: string, width: number) => (text.length > width ? `${text.slice(0, width - 1)}…` : text.padEnd(width))
 
     return (
@@ -167,6 +199,9 @@ export const register: Register = on => {
         ))}
         <Box>
           <Button key="refresh" label={loading ? 'Refreshing…' : 'Refresh'} onPress={() => load($)} />
+          {merged > 0 && !loading && (
+            <Button key="remove-merged" label={`Remove ${merged} merged`} onPress={() => removeMerged($)} />
+          )}
         </Box>
       </Box>
     )

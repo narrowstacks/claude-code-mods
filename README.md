@@ -15,7 +15,7 @@ Function-hook mods for Claude Code. Each folder is one plugin.
 | `remote-guard` | Asks before a destructive command (restart, rm, kill, reboot, pct/qm stop, zfs destroy) runs over ssh |
 | `xcode-status` | Only in a folder with an `.xcodeproj`/`.xcworkspace`: one line with the last build or test result (flags runs that executed 0 tests) and the booted simulator; blocks a second `xcodebuild` while one is running; re-checks on `/cd` and keeps each project's last result |
 | `agent-models` | Pins the model each subagent type runs on (Explore, general-purpose, Plan, any other, plus custom `type=model` pairs), set in `/config` or with `/agent-models <type> <model>`; a model the caller names wins unless "Override explicit models" is on |
-| `worktrees` | `/worktrees` pane: each git worktree with branch, uncommitted changes, ahead/behind and PR state; Remove (after asking) on clean worktrees whose PR is merged or closed |
+| `worktrees` | `/worktrees` pane: each git worktree with branch, uncommitted changes, ahead/behind and PR state; Remove (after asking) on clean worktrees whose PR is merged or closed, plus "Remove N merged" to clear every merged one at once |
 | `pr-rules` | Blocks `gh pr create` / `gt submit` when the repo keeps an `[Unreleased]` changelog and the branch adds no entry (skip with `--label no-changelog`); where the repo's CLAUDE.md says to label every PR (or `requireLabels` is on), blocks a PR with no `--label` and lists the repo's labels. Repos with neither are untouched; `/pr-rules on|off|auto` overrides per repo (kept across sessions) |
 
 ## Install
