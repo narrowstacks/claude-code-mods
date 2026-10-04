@@ -1,19 +1,33 @@
 import { expect, test } from 'claude-code/testing'
 
-import { labelFor } from './register'
+import { labelFor, shortenCommand, spinnerText } from './register'
 
 test('labels common tools', async () => {
-  expect(labelFor('Bash', { command: 'bun test --watch\nmore' })).toBe('$ bun test --watch')
-  expect(labelFor('Read', { file_path: '/a/b/register.ts' })).toBe('Reading register.ts')
-  expect(labelFor('WebFetch', { url: 'https://docs.anthropic.com/x' })).toBe('Fetching docs.anthropic.com')
-  expect(labelFor('mcp__claude_ai_Gmail__search_threads', {})).toBe('Gmail: search_threads')
+  expect(labelFor('Bash', { command: 'bun test --watch\nmore' })).toEqual({ label: '$ bun test --watch' })
+  expect(labelFor('Bash', { command: 'bun test', description: 'Run the tests' })).toEqual({ label: 'Run the tests', detail: 'bun test' })
+  expect(labelFor('Read', { file_path: '/a/b/register.ts' }).label).toBe('Reading register.ts')
+  expect(labelFor('WebFetch', { url: 'https://docs.anthropic.com/x' }).label).toBe('Fetching docs.anthropic.com')
+  expect(labelFor('mcp__claude_ai_Gmail__search_threads', {}).label).toBe('Gmail: search_threads')
+})
+
+test('shortens noisy commands', async () => {
+  expect(shortenCommand('cd /Users/aaron/workspace/app && FOO=1 bun test src/x.test.ts')).toBe('bun test src/x.test.ts')
+  expect(shortenCommand('xcodebuild -project /Users/aaron/dev/stenobar/Stenobar.xcodeproj -scheme App | tail -20')).toBe('xcodebuild -project Stenobar.xcodeproj -scheme App | …')
+  expect(shortenCommand("grep -rn 'a|b' src")).toBe("grep -rn 'a|b' src")
+})
+
+test('fits the width: detail only when whole, label clipped last', async () => {
+  const call = { label: 'Run the tests', detail: 'bun test --coverage' }
+  expect(spinnerText(call, 0, 80)).toBe('Run the tests · bun test --coverage')
+  expect(spinnerText(call, 0, 25)).toBe('Run the tests')
+  expect(spinnerText({ label: '$ ' + 'x'.repeat(50) }, 2, 30)).toBe(`$ ${'x'.repeat(22)}… (+2)`)
 })
 
 test('spinner shows the running tool, then falls back', async ($, on) => {
   const props = { word: 'Baking', message: null, suffix: '…', mode: 'tool-use' as const }
-  let during: unknown
-
   let shown: string | null = null
+  let during: string | null = null
+
   on('ui.render', { component: 'Spinner' }, (t, e) => {
     shown = e.props.message ?? e.props.word
     const { Text } = t.ui.resolve(e)
@@ -27,8 +41,8 @@ test('spinner shows the running tool, then falls back', async ($, on) => {
     return { result: { stdout: '', stderr: '', interrupted: false } as never }
   })
 
-  await $.tool.call({ tool: 'Bash', command: 'git status' })
-  expect(during).toBe('$ git status')
+  await $.tool.call({ tool: 'Bash', command: 'cd /tmp && git status', description: 'Show status' })
+  expect(during).toBe('Show status · git status')
 
   await $.ui.render({ surface: 'terminal', component: 'Spinner', requestId: 'main', props })
   expect(shown).toBe('Baking')
