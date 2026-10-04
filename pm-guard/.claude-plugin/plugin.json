@@ -1,0 +1,1 @@
+{ "name": "pm-guard", "version": "0.1.0", "description": "Steers npm/npx/yarn to the package manager the repo's lockfile names (bun or pnpm), bun where there is none" }
