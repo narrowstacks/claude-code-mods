@@ -2,7 +2,6 @@ export type Verdict = 'pending' | 'passing' | 'failing' | 'none'
 
 export type TrackedPr = {
   url: string
-  label: string
   title: string
   state: 'OPEN' | 'MERGED' | 'CLOSED' | 'UNKNOWN'
   verdict: Verdict

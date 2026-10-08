@@ -1,10 +1,14 @@
 import { expect, test } from 'claude-code/testing'
 
-import { findPrUrls, isPollLoop, summarize } from './register'
+import { findPrUrls, isPollLoop, labelOf, summarize } from './register'
 
 test('finds GitHub and Graphite PR urls', async () => {
   const text = 'https://github.com/a/web/pull/239 and https://app.graphite.dev/github/pr/a/web/240'
   expect(findPrUrls(text)).toEqual(['https://github.com/a/web/pull/239', 'https://github.com/a/web/pull/240'])
+})
+
+test('labels a PR as repo#number', async () => {
+  expect(labelOf('https://github.com/narrowstacks/dorkroom/pull/393')).toBe('dorkroom#393')
 })
 
 test('spots foreground CI polling loops', async () => {

@@ -55,10 +55,11 @@ export const summarize = (checks: readonly Check[]) => {
   return { passed, failed, pending, verdict }
 }
 
-const labelOf = (url: string) => {
-  const [, , , , owner, repo, , number] = url.split('/')
+// https://github.com/<owner>/<repo>/pull/<number>
+export const labelOf = (url: string) => {
+  const [, , , , repo, , number] = url.split('/')
 
-  return `${repo ?? owner}#${number}`
+  return `${repo}#${number}`
 }
 
 const fetchPr = async ($: EngineInterface, pr: TrackedPr): Promise<TrackedPr> => {
@@ -77,11 +78,11 @@ const fetchPr = async ($: EngineInterface, pr: TrackedPr): Promise<TrackedPr> =>
 
 const announce = ($: EngineInterface, before: TrackedPr, after: TrackedPr) => {
   if (before.state !== after.state && after.state !== 'OPEN') {
-    $.ui.toast(`${after.label} ${after.state.toLowerCase()}`, { timeoutMs: 10_000 })
+    $.ui.toast(`${labelOf(after.url)} ${after.state.toLowerCase()}`, { timeoutMs: 10_000 })
   } else if (before.verdict !== after.verdict && after.verdict === 'failing') {
-    $.ui.toast(`${after.label}: ${after.failed} check${after.failed === 1 ? '' : 's'} failing`, { timeoutMs: 10_000 })
+    $.ui.toast(`${labelOf(after.url)}: ${after.failed} check${after.failed === 1 ? '' : 's'} failing`, { timeoutMs: 10_000 })
   } else if (before.verdict !== after.verdict && after.verdict === 'passing') {
-    $.ui.toast(`${after.label}: all checks green`, { timeoutMs: 10_000 })
+    $.ui.toast(`${labelOf(after.url)}: all checks green`, { timeoutMs: 10_000 })
   }
 }
 
@@ -103,7 +104,7 @@ const track = async ($: EngineInterface, urls: string[]) => {
   }
 
   const fresh: TrackedPr[] = added.map(url => ({
-    url, label: labelOf(url), title: '', state: 'UNKNOWN', verdict: 'none', passed: 0, failed: 0, pending: 0,
+    url, title: '', state: 'UNKNOWN', verdict: 'none', passed: 0, failed: 0, pending: 0,
   }))
   await update($, prs, all => [...all, ...fresh].slice(-8))
   await update($, isHidden, () => false)
@@ -124,7 +125,7 @@ export const register: Register = on => {
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     if (e.run_in_background !== true && isPollLoop(e.command)) {
-      const tracked = (await read($, prs)).map(pr => pr.label)
+      const tracked = (await read($, prs)).map(pr => labelOf(pr.url))
       const watching = tracked.length > 0 ? ` It is tracking ${tracked.join(', ')}.` : ''
 
       return {
@@ -164,7 +165,7 @@ export const register: Register = on => {
 
     return {
       text: list
-        .map(pr => `${pr.label.padEnd(24)} ${pr.state.padEnd(7)} ${MARK[pr.verdict].padEnd(5)} ${pr.passed} ok, ${pr.failed} fail, ${pr.pending} pending  ${pr.title}`)
+        .map(pr => `${labelOf(pr.url).padEnd(24)} ${pr.state.padEnd(7)} ${MARK[pr.verdict].padEnd(5)} ${pr.passed} ok, ${pr.failed} fail, ${pr.pending} pending  ${pr.title}`)
         .join('\n'),
     }
   })
@@ -184,7 +185,7 @@ export const register: Register = on => {
         <Text dimColor>PRs </Text>
         {list.slice(-4).map(pr => (
           <Text color={colorOf(pr)}>
-            {pr.label} {pr.state === 'OPEN' || pr.state === 'UNKNOWN' ? `${pr.passed}/${pr.passed + pr.failed + pr.pending}` : pr.state.toLowerCase()}{'  '}
+            {labelOf(pr.url)} {pr.state === 'OPEN' || pr.state === 'UNKNOWN' ? `${pr.passed}/${pr.passed + pr.failed + pr.pending}` : pr.state.toLowerCase()}{'  '}
           </Text>
         ))}
         <Button key="hide" label="Hide" onPress={() => update($, isHidden, () => true)} />

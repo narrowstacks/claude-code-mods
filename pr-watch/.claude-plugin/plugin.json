@@ -1,1 +1,1 @@
-{ "name": "pr-watch", "version": "0.1.0", "description": "Tracks PRs the session touches, shows their checks above the prompt, toasts on green/red/merged, and stops foreground CI polling loops", "types": "./types/index.d.ts" }
+{ "name": "pr-watch", "version": "0.1.1", "description": "Tracks PRs the session touches, shows their checks above the prompt, toasts on green/red/merged, and stops foreground CI polling loops", "types": "./types/index.d.ts" }
