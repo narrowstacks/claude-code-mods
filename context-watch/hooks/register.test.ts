@@ -45,3 +45,23 @@ test('the band passes through what is beneath when figures are missing', async (
   const ui = await $.ui.mount({ plugin: 'context-watch', surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10 } as never })
   expect((await ui.findAll({ type: 'Text', text: 'beneath' })).length).toBe(1)
 })
+
+test('the band draws an Svg gauge on desktop and glyphs on terminal', async ($, on) => {
+  on('session.usage', () => ({
+    value: { startedAt: 0, context: { tokens: 117000, window: 1000000, percent: 12 }, rateLimits: [{ kind: 'five_hour', percentUsed: 64 }], cost: { usd: 1.13 } },
+  }) as never)
+  on('ui.render', { component: 'AbovePrompt' }, (t, e) => {
+    const { Box } = t.ui.resolve(e)
+
+    return h(Box, null) as never
+  })
+  const props = { hasSurvey: false, isWorking: false, maxRows: 10 } as never
+
+  const desktop = await $.ui.mount({ plugin: 'context-watch', surface: 'desktop', component: 'AbovePrompt', props })
+  expect(await desktop.findAll({ type: 'Svg' })).toHaveLength(2)
+  expect((await desktop.findAll({ type: 'Text', text: '117k / 1M' })).length).toBe(1)
+  expect((await desktop.findAll({ type: 'Text', text: /\$1\.13/ })).length).toBe(1)
+
+  const terminal = await $.ui.mount({ plugin: 'context-watch', surface: 'terminal', component: 'AbovePrompt', props })
+  expect((await terminal.findAll({ type: 'Text', text: /▰/ })).length).toBe(1)
+})

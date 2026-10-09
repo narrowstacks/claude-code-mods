@@ -15,6 +15,9 @@ const shortPath = (path: string) => path.split('/').slice(-2).join('/')
 const formatK = (tokens: number) =>
   tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : String(tokens)
 
+const formatTokens = (tokens: number) =>
+  tokens >= 1_000_000 ? `${+(tokens / 1_000_000).toFixed(1)}M` : formatK(tokens)
+
 export const bar = (fraction: number, width: number, full = '▰', empty = '▱') => {
   const filled = Math.round(Math.min(1, Math.max(0, fraction)) * width)
 
@@ -22,6 +25,23 @@ export const bar = (fraction: number, width: number, full = '▰', empty = '▱'
 }
 
 const heat = (percent: number) => (percent >= 80 ? 'red' : percent >= 60 ? 'yellow' : 'green')
+
+// Svg draws as an isolated image, so it takes fixed colors that read on light and dark alike.
+const HEAT_HEX = { green: '#3fb950', yellow: '#d29922', red: '#f85149' }
+
+// A rounded gauge for surfaces with Svg, ticked at the toast thresholds when `ticks` is set.
+export const gaugeSvg = (percent: number, width: number, height: number, ticks = false) => {
+  const r = height / 2
+  const fill = Math.min(width, Math.max(0, (percent / 100) * width))
+  const marks = ticks
+    ? THRESHOLDS.slice(0, 2).map(t => `<rect x="${(t / 100) * width - 0.5}" y="0" width="1" height="${height}" fill="#8b949e" fill-opacity="0.6"/>`).join('')
+    : ''
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
+    + `<clipPath id="c"><rect width="${width}" height="${height}" rx="${r}"/></clipPath>`
+    + `<g clip-path="url(#c)"><rect width="${width}" height="${height}" fill="#8b949e" fill-opacity="0.22"/>`
+    + `<rect width="${fill}" height="${height}" fill="${HEAT_HEX[heat(percent)]}"/>${marks}</g></svg>`
+}
 
 const limitName = (kind: string) =>
   kind === 'five_hour' ? '5h' : kind === 'seven_day' ? '7d' : kind
@@ -141,6 +161,33 @@ export const register: Register = on => {
     const percent = usage?.context.percent
     if (usage === undefined || percent === undefined) {
       return below
+    }
+
+    if (e.surface === 'desktop') {
+      const { Box, Text, Svg } = $.ui.resolve(e)
+      const hot = usage.rateLimits.filter(limit => limit.percentUsed >= 50)
+
+      return (
+        <Box flexDirection="column">
+          <Box alignItems="center" columnGap={1}>
+            <Text dimColor>Context</Text>
+            <Svg source={gaugeSvg(percent, 160, 8, true)} alt={`Context ${percent}% full`} width={160} height={8} />
+            <Text bold color={percent >= 60 ? heat(percent) : undefined}>{percent}%</Text>
+            <Text dimColor>
+              {formatTokens(usage.context.tokens ?? 0)} / {formatTokens(usage.context.window)}
+            </Text>
+            {usage.cost !== undefined ? <Text dimColor>·  ${usage.cost.usd.toFixed(2)}</Text> : null}
+            {hot.map(limit => (
+              <Box alignItems="center" columnGap={1}>
+                <Text dimColor>·  {limitName(limit.kind)}</Text>
+                <Svg source={gaugeSvg(limit.percentUsed, 40, 6)} alt={`${limitName(limit.kind)} limit ${Math.round(limit.percentUsed)}% used`} width={40} height={6} />
+                <Text color={heat(limit.percentUsed)}>{Math.round(limit.percentUsed)}%</Text>
+              </Box>
+            ))}
+          </Box>
+          {below}
+        </Box>
+      )
     }
 
     const { Box, Text } = $.ui.resolve(e)
