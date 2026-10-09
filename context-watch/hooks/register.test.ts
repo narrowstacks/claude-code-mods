@@ -1,8 +1,8 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
-import { statusText } from './register'
+import { resetsIn, statusText } from './register'
 
-test('status line shows fill, cost and only hot rate limits', async () => {
+test('status line shows fill, cost and every rate limit', async () => {
   const text = statusText({
     startedAt: 0,
     context: { tokens: 164000, window: 200000, percent: 82 },
@@ -12,7 +12,7 @@ test('status line shows fill, cost and only hot rate limits', async () => {
     ],
     cost: { usd: 3.456 },
   })
-  expect(text).toBe('ctx ▰▰▰▰▰▰▰▰▱▱ 82% 164k/200k  ·  $3.46  ·  5h 72%')
+  expect(text).toBe('ctx ▰▰▰▰▰▰▰▰▱▱ 82% 164k/200k  ·  $3.46  ·  5h 72%  ·  7d 12%')
 })
 
 test('compaction is told to keep edited files', async ($, on) => {
@@ -47,8 +47,9 @@ test('the band passes through what is beneath when figures are missing', async (
 })
 
 test('the band draws an Svg gauge on desktop and glyphs on terminal', async ($, on) => {
+  mock.clock(on)
   on('session.usage', () => ({
-    value: { startedAt: 0, context: { tokens: 117000, window: 1000000, percent: 12 }, rateLimits: [{ kind: 'five_hour', percentUsed: 64 }], cost: { usd: 1.13 } },
+    value: { startedAt: 0, context: { tokens: 117000, window: 1000000, percent: 12 }, rateLimits: [{ kind: 'five_hour', percentUsed: 64 }, { kind: 'seven_day', percentUsed: 21 }], cost: { usd: 1.13 } },
   }) as never)
   on('ui.render', { component: 'AbovePrompt' }, (t, e) => {
     const { Box } = t.ui.resolve(e)
@@ -58,12 +59,15 @@ test('the band draws an Svg gauge on desktop and glyphs on terminal', async ($, 
   const props = { hasSurvey: false, isWorking: false, maxRows: 10 } as never
 
   const desktop = await $.ui.mount({ plugin: 'context-watch', surface: 'desktop', component: 'AbovePrompt', props })
-  expect(await desktop.findAll({ type: 'Svg' })).toHaveLength(2)
+  // The context gauge and one for each rate limit, low ones included.
+  expect(await desktop.findAll({ type: 'Svg' })).toHaveLength(3)
+  expect(await desktop.findAll({ type: 'Text', text: '21%' })).toHaveLength(1)
   expect((await desktop.findAll({ type: 'Text', text: '117k / 1M' })).length).toBe(1)
   expect((await desktop.findAll({ type: 'Text', text: /\$1\.13/ })).length).toBe(1)
 
   const terminal = await $.ui.mount({ plugin: 'context-watch', surface: 'terminal', component: 'AbovePrompt', props })
   expect((await terminal.findAll({ type: 'Text', text: /▰/ })).length).toBe(1)
+  expect(await terminal.findAll({ type: 'Text', text: /5h 64%  ·  7d 21%/ })).toHaveLength(1)
 })
 
 test('the desktop pane draws the breakdown as a stacked bar with a legend', async ($, on) => {
@@ -102,4 +106,12 @@ test('the desktop pane draws the breakdown as a stacked bar with a legend', asyn
   expect(await ui.findAll({ type: 'Text', text: 'Messages' })).toHaveLength(1)
   expect(await ui.findAll({ type: 'Text', text: '40k · 20.0%' })).toHaveLength(1)
   expect(await ui.findAll({ type: 'Text', text: 'Free space' })).toHaveLength(0)
+})
+
+test('says when a rate limit window resets', async () => {
+  const now = Date.parse('2026-10-08T12:00:00Z')
+  expect(resetsIn('2026-10-08T14:10:00Z', now)).toBe('resets in 2h 10m')
+  expect(resetsIn('2026-10-11T15:00:00Z', now)).toBe('resets in 3d 3h')
+  expect(resetsIn('2026-10-08T12:25:00Z', now)).toBe('resets in 25m')
+  expect(resetsIn(undefined, now)).toBe(undefined)
 })

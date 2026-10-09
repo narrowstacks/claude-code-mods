@@ -83,6 +83,21 @@ export const gaugeSvg = (percent: number, width: number, height: number, ticks =
 const limitName = (kind: string) =>
   kind === 'five_hour' ? '5h' : kind === 'seven_day' ? '7d' : kind
 
+// "resets in 2h 10m", from the window's ISO reset time.
+export const resetsIn = (resetsAt: string | undefined, now: number) => {
+  const at = resetsAt === undefined ? NaN : Date.parse(resetsAt)
+  if (Number.isNaN(at)) {
+    return undefined
+  }
+
+  const minutes = Math.max(0, Math.round((at - now) / 60_000))
+  const days = Math.floor(minutes / 1440)
+  const hours = Math.floor((minutes % 1440) / 60)
+  const left = days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`
+
+  return `resets in ${left}`
+}
+
 export const statusText = (usage: SessionUsage) => {
   const parts: string[] = []
   const { percent, tokens, window } = usage.context
@@ -94,9 +109,7 @@ export const statusText = (usage: SessionUsage) => {
     parts.push(`$${usage.cost.usd.toFixed(2)}`)
   }
   for (const limit of usage.rateLimits) {
-    if (limit.percentUsed >= 50) {
-      parts.push(`${limitName(limit.kind)} ${Math.round(limit.percentUsed)}%`)
-    }
+    parts.push(`${limitName(limit.kind)} ${Math.round(limit.percentUsed)}%`)
   }
 
   return parts.join('  ·  ')
@@ -202,7 +215,7 @@ export const register: Register = on => {
 
     if (e.surface === 'desktop') {
       const { Box, Text, Svg } = $.ui.resolve(e)
-      const hot = usage.rateLimits.filter(limit => limit.percentUsed >= 50)
+      const now = await $.clock.now()
 
       return (
         <Box flexDirection="column">
@@ -214,11 +227,14 @@ export const register: Register = on => {
               {formatTokens(usage.context.tokens ?? 0)} / {formatTokens(usage.context.window)}
             </Text>
             {usage.cost !== undefined ? <Text dimColor>·  ${usage.cost.usd.toFixed(2)}</Text> : null}
-            {hot.map(limit => (
-              <Box alignItems="center" columnGap={1}>
+            {usage.rateLimits.map(limit => (
+              <Box key={`limit-${limit.kind}`} alignItems="center" columnGap={1}>
                 <Text dimColor>·  {limitName(limit.kind)}</Text>
-                <Svg source={gaugeSvg(limit.percentUsed, 40, 6)} alt={`${limitName(limit.kind)} limit ${Math.round(limit.percentUsed)}% used`} width={40} height={6} />
-                <Text color={heat(limit.percentUsed)}>{Math.round(limit.percentUsed)}%</Text>
+                <Svg source={gaugeSvg(limit.percentUsed, 48, 6)} alt={`${limitName(limit.kind)} limit ${Math.round(limit.percentUsed)}% used`} width={48} height={6} />
+                <Text color={limit.percentUsed >= 60 ? heat(limit.percentUsed) : undefined}>{Math.round(limit.percentUsed)}%</Text>
+                {resetsIn(limit.resetsAt, now) !== undefined
+                  ? <Box display="none" hover={{ display: 'flex' }}><Text dimColor>{resetsIn(limit.resetsAt, now)}</Text></Box>
+                  : null}
               </Box>
             ))}
           </Box>
