@@ -49,7 +49,7 @@ const save = async ($: EngineInterface, focus: string) => {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'handoff',
+      name: 'carryover',
       description: 'Save a state note and /clear; the next prompt carries it. Args: [focus] | save | show | drop',
     })
     if ((await readNote($)) !== undefined) {
@@ -59,7 +59,7 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'handoff' }, async ($, e) => {
+  on('command.run', { command: 'carryover' }, async ($, e) => {
     const args = e.args.trim()
 
     if (args === 'show') {
@@ -77,7 +77,7 @@ export const register: Register = on => {
     const isSaveOnly = args === 'save'
     const saved = await save($, isSaveOnly ? '' : args)
     if ('error' in saved) {
-      return { text: `handoff: ${saved.error}.` }
+      return { text: `carryover: ${saved.error}.` }
     }
     if (isSaveOnly) {
       return { text: 'Handoff note saved. It rides along with the first prompt after /clear or in a new session here.' }

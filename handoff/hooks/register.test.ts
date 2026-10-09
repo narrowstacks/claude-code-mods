@@ -3,7 +3,7 @@ import { expect, mock, test } from 'claude-code/testing'
 const NOTE = '## Goal\nShip the mods'
 const USAGE = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
 const RUN = { origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 100 } }
-const run = (args: string) => ({ command: 'handoff', args, ...RUN })
+const run = (args: string) => ({ command: 'carryover', args, ...RUN })
 const typed = (text: string) => ({ text, wait: false, origin: { kind: 'composer' as const } })
 
 test('save writes a note, and the first prompt after /clear carries it once', async ($, on) => {

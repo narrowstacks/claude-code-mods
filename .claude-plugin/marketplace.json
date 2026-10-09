@@ -30,7 +30,7 @@
     {
       "name": "handoff",
       "source": "./handoff",
-      "description": "/handoff saves a state note, clears, and carries the note into the fresh context"
+      "description": "/carryover saves a state note, clears, and carries the note into the fresh context"
     },
     {
       "name": "agent-jobs",

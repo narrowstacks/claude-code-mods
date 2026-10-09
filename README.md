@@ -8,7 +8,7 @@ Function-hook mods for Claude Code. Each folder is one plugin.
 | `live-spinner` | Spinner shows what is running: the Bash description or a trimmed command, the ssh host, file being read or edited, search, subagent, MCP tool; a tool's own elapsed time after 15s; "Waiting for signing approval" when a signed git commit or tag sits quiet |
 | `pr-watch` | Tracks PRs from `gh pr` / `gt submit` / `git push` output, shows checks above the prompt, toasts on green/red/merged, blocks foreground CI polling loops; `/prs` |
 | `house-style` | No em dashes: system prompt rule, reminder to the model after a write that adds one, toast when a reply uses one |
-| `handoff` | `/handoff [focus]` writes a state note from the conversation and clears; the next prompt carries it. `/handoff save`, `show`, `drop` |
+| `handoff` | `/carryover [focus]` writes a state note from the conversation and clears; the next prompt carries it. `/carryover save`, `show`, `drop` |
 | `agent-jobs` | `/jobs` opens a pane of running subagents and background shells with elapsed time and a Stop button; toasts when background work finishes |
 | `zsh-safe` | Quotes glob flags zsh would expand (`--include=*.ts`, `find -name *.ts`) and keeps a grep that finds nothing from failing a `cd ... && grep` chain |
 | `pm-guard` | Blocks npm/npx/yarn where the lockfile says bun or pnpm, and steers to bun where there is no lockfile |
