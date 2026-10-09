@@ -80,7 +80,11 @@ test('the desktop pane draws the breakdown as a stacked bar with a legend', asyn
             { name: 'Autocompact buffer', tokens: 30000, kind: 'buffer', color: 'x', isDeferred: false },
             { name: 'Free space', tokens: 110000, kind: 'free', color: 'x', isDeferred: false },
           ],
-          mcpTools: [{ name: 'mcp__gh__search', tokens: 3000 }],
+          mcpTools: [
+            { name: 'mcp__gh__search', serverName: 'gh', tokens: 3000, isLoaded: true },
+            { name: 'mcp__gh__view', serverName: 'gh', tokens: 1000, isLoaded: true },
+            { name: 'mcp__vercel__deploy', serverName: 'vercel', tokens: 9000, isLoaded: false },
+          ],
           memoryFiles: [],
         },
       },
@@ -89,8 +93,12 @@ test('the desktop pane draws the breakdown as a stacked bar with a legend', asyn
   }) as never)
   const ui = await $.ui.mount({ plugin: 'context-watch', surface: 'desktop', component: 'Pane', requestId: 'context-watch', props: {} as never })
   const svgs = await ui.findAll({ type: 'Svg' })
-  // The stacked bar, a swatch for each of the three segments, one MCP bar.
+  // The stacked bar, a swatch for each of the three segments, one MCP server bar.
   expect(svgs).toHaveLength(5)
+  // An Svg with an empty alt draws nothing on desktop.
+  expect(svgs.every(svg => (svg.props as { alt?: string }).alt !== '')).toBe(true)
+  expect(await ui.findAll({ type: 'Text', text: '4k · 2 tools' })).toHaveLength(1)
+  expect(await ui.findAll({ type: 'Text', text: /1 more tool load on demand/ })).toHaveLength(1)
   expect(await ui.findAll({ type: 'Text', text: 'Messages' })).toHaveLength(1)
   expect(await ui.findAll({ type: 'Text', text: '40k · 20.0%' })).toHaveLength(1)
   expect(await ui.findAll({ type: 'Text', text: 'Free space' })).toHaveLength(0)

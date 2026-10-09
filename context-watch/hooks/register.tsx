@@ -18,18 +18,14 @@ const formatK = (tokens: number) =>
 // Hex twins of PALETTE for Svg, which draws as an isolated image.
 const PALETTE_HEX = ['#39c5cf', '#bc8cff', '#58a6ff', '#d29922', '#3fb950', '#ff7b72', '#f778ba']
 
-const escapeXml = (text: string) =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-
 type Segment = { name: string; tokens: number; color: string; opacity?: number }
 
-// One stacked bar of the window, each segment titled so hovering it names its share.
-export const stackSvg = (segments: Segment[], total: number, width = 600, height = 18) => {
+// One stacked bar of the window; the legend beneath it names each segment.
+export const stackSvg = (segments: Segment[], total: number, width = 600, height = 14) => {
   let x = 0
   const rects = segments.map(seg => {
     const w = total > 0 ? (seg.tokens / total) * width : 0
-    const rect = `<rect x="${x.toFixed(2)}" width="${w.toFixed(2)}" height="${height}" fill="${seg.color}" fill-opacity="${seg.opacity ?? 1}">`
-      + `<title>${escapeXml(seg.name)}: ${formatTokens(seg.tokens)} (${((seg.tokens / total) * 100).toFixed(1)}%)</title></rect>`
+    const rect = `<rect x="${x.toFixed(2)}" width="${w.toFixed(2)}" height="${height}" fill="${seg.color}" fill-opacity="${seg.opacity ?? 1}"/>`
     x += w
 
     return rect
@@ -38,6 +34,19 @@ export const stackSvg = (segments: Segment[], total: number, width = 600, height
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
     + `<clipPath id="c"><rect width="${width}" height="${height}" rx="5"/></clipPath>`
     + `<g clip-path="url(#c)"><rect width="${width}" height="${height}" fill="#8b949e" fill-opacity="0.15"/>${rects.join('')}</g></svg>`
+}
+
+// Loaded MCP tools summed by server, heaviest first; unloaded ones take no context yet.
+export const mcpServers = (tools: readonly { serverName: string; tokens: number; isLoaded: boolean }[], limit = 6) => {
+  const byServer = new Map<string, { name: string; tokens: number; tools: number }>()
+  for (const tool of tools.filter(t => t.isLoaded)) {
+    const server = byServer.get(tool.serverName) ?? { name: tool.serverName, tokens: 0, tools: 0 }
+    server.tokens += tool.tokens
+    server.tools += 1
+    byServer.set(tool.serverName, server)
+  }
+
+  return [...byServer.values()].sort((a, b) => b.tokens - a.tokens).slice(0, limit)
 }
 
 const swatchSvg = (color: string, opacity = 1) =>
@@ -264,9 +273,10 @@ export const register: Register = on => {
         ...used.map((c, i) => ({ name: c.name, tokens: c.tokens, color: PALETTE_HEX[i % PALETTE_HEX.length] ?? '#58a6ff' })),
         ...categories.filter(c => c.kind === 'buffer' && c.tokens > 0).map(c => ({ name: c.name, tokens: c.tokens, color: '#8b949e', opacity: 0.45 })),
       ]
-      const mcp = [...(breakdown?.mcpTools ?? [])].sort((a, b) => b.tokens - a.tokens).slice(0, 6)
+      const servers = mcpServers(breakdown?.mcpTools ?? [])
+      const deferred = (breakdown?.mcpTools ?? []).filter(t => !t.isLoaded).length
       const memory = [...(breakdown?.memoryFiles ?? [])].sort((a, b) => b.tokens - a.tokens).slice(0, 4)
-      const heaviest = mcp[0]?.tokens ?? 1
+      const heaviest = servers[0]?.tokens ?? 1
 
       return (
         <Box flexDirection="column" rowGap={1}>
@@ -278,28 +288,29 @@ export const register: Register = on => {
               {usage.rateLimits.map(l => `  ·  ${limitName(l.kind)} ${Math.round(l.percentUsed)}%`).join('')}
             </Text>
           </Box>
-          <Svg source={stackSvg(segments, total)} alt={`Context ${percent}% full`} isInteractive />
+          <Svg source={stackSvg(segments, total)} alt={`Context ${percent}% full`} />
 
           <Box flexDirection="column">
             {segments.map(seg => (
               <Box key={`cat-${seg.name}`} alignItems="center" columnGap={1}>
-                <Svg source={swatchSvg(seg.color, seg.opacity)} alt="" width={10} height={10} />
+                <Svg source={swatchSvg(seg.color, seg.opacity)} alt={seg.name} width={10} height={10} />
                 <Text>{seg.name}</Text>
                 <Text dimColor>{formatTokens(seg.tokens)} · {((seg.tokens / total) * 100).toFixed(1)}%</Text>
               </Box>
             ))}
           </Box>
 
-          {mcp.length > 0 && (
+          {(servers.length > 0 || deferred > 0) && (
             <Box flexDirection="column">
-              <Text bold>Heaviest MCP tools</Text>
-              {mcp.map(t => (
-                <Box key={`mcp-${t.name}`} alignItems="center" columnGap={1}>
-                  <Svg source={gaugeSvg((t.tokens / heaviest) * 100, 80, 6, false, '#58a6ff')} alt="" width={80} height={6} />
-                  <Text dimColor>{formatTokens(t.tokens)}</Text>
-                  <Text>{t.name}</Text>
+              <Text bold>MCP servers in context</Text>
+              {servers.map(server => (
+                <Box key={`mcp-${server.name}`} alignItems="center" columnGap={1}>
+                  <Svg source={gaugeSvg((server.tokens / heaviest) * 100, 80, 6, false, '#58a6ff')} alt={`${server.name} ${formatTokens(server.tokens)}`} width={80} height={6} />
+                  <Text>{server.name}</Text>
+                  <Text dimColor>{formatTokens(server.tokens)} · {server.tools} tool{server.tools === 1 ? '' : 's'}</Text>
                 </Box>
               ))}
+              {deferred > 0 && <Text dimColor>{deferred} more tool{deferred === 1 ? '' : 's'} load on demand and use no context until searched for</Text>}
             </Box>
           )}
 
