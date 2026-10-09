@@ -89,7 +89,7 @@ export const register: Register = (on, options) => {
         options.force === true ? 'Explicit models are overridden.' : 'A model the caller names wins over a pin.',
         ...(spawns.length > 0 ? ['', 'Recent subagents:', ...spawns] : []),
         '',
-        'Change with /agent-models <type> <model>, or in /config.',
+        'Change with /agent-models <type> <model> (or /config in a terminal).',
       ].join('\n'),
     }
   })

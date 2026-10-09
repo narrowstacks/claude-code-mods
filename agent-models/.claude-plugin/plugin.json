@@ -1,6 +1,6 @@
 {
   "name": "agent-models",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pins the model each subagent type runs on, set in /config or with /agent-models",
   "types": "./types/index.d.ts",
   "userConfig": {

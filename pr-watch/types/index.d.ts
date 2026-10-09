@@ -8,6 +8,8 @@ export type TrackedPr = {
   passed: number
   failed: number
   pending: number
+  /** Names of the failing checks; absent on PRs tracked before 0.2.0. */
+  failing?: string[]
 }
 
 declare module 'claude-code' {

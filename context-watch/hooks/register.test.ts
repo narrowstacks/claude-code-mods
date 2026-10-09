@@ -65,3 +65,33 @@ test('the band draws an Svg gauge on desktop and glyphs on terminal', async ($, 
   const terminal = await $.ui.mount({ plugin: 'context-watch', surface: 'terminal', component: 'AbovePrompt', props })
   expect((await terminal.findAll({ type: 'Text', text: /▰/ })).length).toBe(1)
 })
+
+test('the desktop pane draws the breakdown as a stacked bar with a legend', async ($, on) => {
+  on('session.usage', () => ({
+    value: {
+      startedAt: 0,
+      context: {
+        tokens: 60000, window: 200000, percent: 30,
+        breakdown: {
+          rawMaxTokens: 200000, totalTokens: 60000, percentage: 30,
+          categories: [
+            { name: 'System prompt', tokens: 20000, kind: 'used', color: 'x', isDeferred: false },
+            { name: 'Messages', tokens: 40000, kind: 'used', color: 'x', isDeferred: false },
+            { name: 'Autocompact buffer', tokens: 30000, kind: 'buffer', color: 'x', isDeferred: false },
+            { name: 'Free space', tokens: 110000, kind: 'free', color: 'x', isDeferred: false },
+          ],
+          mcpTools: [{ name: 'mcp__gh__search', tokens: 3000 }],
+          memoryFiles: [],
+        },
+      },
+      rateLimits: [],
+    },
+  }) as never)
+  const ui = await $.ui.mount({ plugin: 'context-watch', surface: 'desktop', component: 'Pane', requestId: 'context-watch', props: {} as never })
+  const svgs = await ui.findAll({ type: 'Svg' })
+  // The stacked bar, a swatch for each of the three segments, one MCP bar.
+  expect(svgs).toHaveLength(5)
+  expect(await ui.findAll({ type: 'Text', text: 'Messages' })).toHaveLength(1)
+  expect(await ui.findAll({ type: 'Text', text: '40k · 20.0%' })).toHaveLength(1)
+  expect(await ui.findAll({ type: 'Text', text: 'Free space' })).toHaveLength(0)
+})

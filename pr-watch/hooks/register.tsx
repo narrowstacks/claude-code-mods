@@ -31,12 +31,13 @@ export const findPrUrls = (text: string): string[] => {
 
 export const isPollLoop = (command: string) => POLL_LOOP.some(pattern => pattern.test(command))
 
-type Check = { conclusion?: string | null; state?: string | null; status?: string | null }
+type Check = { conclusion?: string | null; state?: string | null; status?: string | null; name?: string; context?: string }
 
 export const summarize = (checks: readonly Check[]) => {
   let passed = 0
   let failed = 0
   let pending = 0
+  const failing: string[] = []
   for (const check of checks) {
     const outcome = (check.conclusion || check.state || '').toUpperCase()
     if (check.status !== undefined && check.status !== null && check.status.toUpperCase() !== 'COMPLETED') {
@@ -47,12 +48,13 @@ export const summarize = (checks: readonly Check[]) => {
       pending += 1
     } else {
       failed += 1
+      failing.push(check.name || check.context || 'unnamed check')
     }
   }
   const verdict: Verdict =
     failed > 0 ? 'failing' : pending > 0 ? 'pending' : passed > 0 ? 'passing' : 'none'
 
-  return { passed, failed, pending, verdict }
+  return { passed, failed, pending, verdict, failing }
 }
 
 // https://github.com/<owner>/<repo>/pull/<number>
@@ -110,6 +112,26 @@ const track = async ($: EngineInterface, urls: string[]) => {
   await update($, isHidden, () => false)
   poll($).catch(() => undefined)
 }
+
+// Svg draws as an isolated image, so it takes fixed colors that read on light and dark alike.
+const DOT_HEX = { merged: '#a371f7', closed: '#8b949e', passing: '#3fb950', failing: '#f85149', pending: '#d29922' }
+
+const dotOf = (pr: TrackedPr) =>
+  pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'closed' : pr.verdict === 'failing' ? 'failing' : pr.verdict === 'passing' ? 'passing' : 'pending'
+
+// A filled dot for a settled PR, a ring while checks are still running.
+export const dotSvg = (pr: TrackedPr) => {
+  const kind = dotOf(pr)
+  const color = DOT_HEX[kind]
+  const shape = kind === 'pending'
+    ? `<circle cx="5" cy="5" r="3.5" fill="none" stroke="${color}" stroke-width="2"/>`
+    : `<circle cx="5" cy="5" r="4.5" fill="${color}"/>`
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10">${shape}</svg>`
+}
+
+const countOf = (pr: TrackedPr) =>
+  pr.state === 'OPEN' || pr.state === 'UNKNOWN' ? `${pr.passed}/${pr.passed + pr.failed + pr.pending}` : pr.state.toLowerCase()
 
 const MARK: Record<Verdict, string> = { passing: 'ok', failing: 'FAIL', pending: '...', none: '-' }
 
@@ -176,6 +198,29 @@ export const register: Register = on => {
       return next(e)
     }
 
+    if (e.surface === 'desktop') {
+      const { Box, Text, Button, Link, Svg } = $.ui.resolve(e)
+      const failingOf = (pr: TrackedPr) => (pr.failing ?? []).slice(0, 3).join(', ') + ((pr.failing?.length ?? 0) > 3 ? ` +${(pr.failing?.length ?? 0) - 3}` : '')
+
+      return (
+        <Box alignItems="center" columnGap={2}>
+          <Text dimColor>PRs</Text>
+          {list.slice(-4).map(pr => (
+            <Box key={`pr-${labelOf(pr.url)}`} alignItems="center" columnGap={1}>
+              <Svg source={dotSvg(pr)} alt={dotOf(pr)} width={10} height={10} />
+              <Link href={pr.url} label={labelOf(pr.url)} />
+              <Text dimColor>{countOf(pr)}</Text>
+              <Box display="none" hover={{ display: 'flex' }} columnGap={1}>
+                {pr.title !== '' ? <Text dimColor>{pr.title}</Text> : null}
+                {pr.failed > 0 && failingOf(pr) !== '' ? <Text color="red">failing: {failingOf(pr)}</Text> : null}
+              </Box>
+            </Box>
+          ))}
+          <Button key="hide" label="Hide" role="dismiss" onPress={() => update($, isHidden, () => true)} />
+        </Box>
+      )
+    }
+
     const { Box, Text, Button } = $.ui.resolve(e)
     const colorOf = (pr: TrackedPr) =>
       pr.state === 'MERGED' ? 'magenta' : pr.verdict === 'failing' ? 'red' : pr.verdict === 'passing' ? 'green' : 'yellow'
@@ -185,7 +230,7 @@ export const register: Register = on => {
         <Text dimColor>PRs </Text>
         {list.slice(-4).map(pr => (
           <Text color={colorOf(pr)}>
-            {labelOf(pr.url)} {pr.state === 'OPEN' || pr.state === 'UNKNOWN' ? `${pr.passed}/${pr.passed + pr.failed + pr.pending}` : pr.state.toLowerCase()}{'  '}
+            {labelOf(pr.url)} {countOf(pr)}{'  '}
           </Text>
         ))}
         <Button key="hide" label="Hide" onPress={() => update($, isHidden, () => true)} />

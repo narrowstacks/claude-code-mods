@@ -15,6 +15,34 @@ const shortPath = (path: string) => path.split('/').slice(-2).join('/')
 const formatK = (tokens: number) =>
   tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : String(tokens)
 
+// Hex twins of PALETTE for Svg, which draws as an isolated image.
+const PALETTE_HEX = ['#39c5cf', '#bc8cff', '#58a6ff', '#d29922', '#3fb950', '#ff7b72', '#f778ba']
+
+const escapeXml = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+type Segment = { name: string; tokens: number; color: string; opacity?: number }
+
+// One stacked bar of the window, each segment titled so hovering it names its share.
+export const stackSvg = (segments: Segment[], total: number, width = 600, height = 18) => {
+  let x = 0
+  const rects = segments.map(seg => {
+    const w = total > 0 ? (seg.tokens / total) * width : 0
+    const rect = `<rect x="${x.toFixed(2)}" width="${w.toFixed(2)}" height="${height}" fill="${seg.color}" fill-opacity="${seg.opacity ?? 1}">`
+      + `<title>${escapeXml(seg.name)}: ${formatTokens(seg.tokens)} (${((seg.tokens / total) * 100).toFixed(1)}%)</title></rect>`
+    x += w
+
+    return rect
+  })
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
+    + `<clipPath id="c"><rect width="${width}" height="${height}" rx="5"/></clipPath>`
+    + `<g clip-path="url(#c)"><rect width="${width}" height="${height}" fill="#8b949e" fill-opacity="0.15"/>${rects.join('')}</g></svg>`
+}
+
+const swatchSvg = (color: string, opacity = 1) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><rect width="10" height="10" rx="2.5" fill="${color}" fill-opacity="${opacity}"/></svg>`
+
 const formatTokens = (tokens: number) =>
   tokens >= 1_000_000 ? `${+(tokens / 1_000_000).toFixed(1)}M` : formatK(tokens)
 
@@ -30,7 +58,7 @@ const heat = (percent: number) => (percent >= 80 ? 'red' : percent >= 60 ? 'yell
 const HEAT_HEX = { green: '#3fb950', yellow: '#d29922', red: '#f85149' }
 
 // A rounded gauge for surfaces with Svg, ticked at the toast thresholds when `ticks` is set.
-export const gaugeSvg = (percent: number, width: number, height: number, ticks = false) => {
+export const gaugeSvg = (percent: number, width: number, height: number, ticks = false, color = HEAT_HEX[heat(percent)]) => {
   const r = height / 2
   const fill = Math.min(width, Math.max(0, (percent / 100) * width))
   const marks = ticks
@@ -40,7 +68,7 @@ export const gaugeSvg = (percent: number, width: number, height: number, ticks =
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
     + `<clipPath id="c"><rect width="${width}" height="${height}" rx="${r}"/></clipPath>`
     + `<g clip-path="url(#c)"><rect width="${width}" height="${height}" fill="#8b949e" fill-opacity="0.22"/>`
-    + `<rect width="${fill}" height="${height}" fill="${HEAT_HEX[heat(percent)]}"/>${marks}</g></svg>`
+    + `<rect width="${fill}" height="${height}" fill="${color}"/>${marks}</g></svg>`
 }
 
 const limitName = (kind: string) =>
@@ -225,6 +253,79 @@ export const register: Register = on => {
 
     const files = await read($, edited)
     const breakdown = usage.context.breakdown
+
+    if (e.surface === 'desktop') {
+      const { Svg } = $.ui.resolve(e)
+      const total = breakdown?.rawMaxTokens ?? usage.context.window
+      const percent = usage.context.percent ?? breakdown?.percentage ?? 0
+      const categories = breakdown?.categories ?? []
+      const used = categories.filter(c => c.kind === 'used' && c.tokens > 0).sort((a, b) => b.tokens - a.tokens)
+      const segments: Segment[] = [
+        ...used.map((c, i) => ({ name: c.name, tokens: c.tokens, color: PALETTE_HEX[i % PALETTE_HEX.length] ?? '#58a6ff' })),
+        ...categories.filter(c => c.kind === 'buffer' && c.tokens > 0).map(c => ({ name: c.name, tokens: c.tokens, color: '#8b949e', opacity: 0.45 })),
+      ]
+      const mcp = [...(breakdown?.mcpTools ?? [])].sort((a, b) => b.tokens - a.tokens).slice(0, 6)
+      const memory = [...(breakdown?.memoryFiles ?? [])].sort((a, b) => b.tokens - a.tokens).slice(0, 4)
+      const heaviest = mcp[0]?.tokens ?? 1
+
+      return (
+        <Box flexDirection="column" rowGap={1}>
+          <Box alignItems="center" columnGap={1}>
+            <Text bold color={percent >= 60 ? heat(percent) : undefined}>{percent}%</Text>
+            <Text dimColor>
+              {formatTokens(usage.context.tokens ?? breakdown?.totalTokens ?? 0)} of {formatTokens(usage.context.window)} tokens
+              {usage.cost !== undefined ? `  ·  $${usage.cost.usd.toFixed(2)}` : ''}
+              {usage.rateLimits.map(l => `  ·  ${limitName(l.kind)} ${Math.round(l.percentUsed)}%`).join('')}
+            </Text>
+          </Box>
+          <Svg source={stackSvg(segments, total)} alt={`Context ${percent}% full`} isInteractive />
+
+          <Box flexDirection="column">
+            {segments.map(seg => (
+              <Box key={`cat-${seg.name}`} alignItems="center" columnGap={1}>
+                <Svg source={swatchSvg(seg.color, seg.opacity)} alt="" width={10} height={10} />
+                <Text>{seg.name}</Text>
+                <Text dimColor>{formatTokens(seg.tokens)} · {((seg.tokens / total) * 100).toFixed(1)}%</Text>
+              </Box>
+            ))}
+          </Box>
+
+          {mcp.length > 0 && (
+            <Box flexDirection="column">
+              <Text bold>Heaviest MCP tools</Text>
+              {mcp.map(t => (
+                <Box key={`mcp-${t.name}`} alignItems="center" columnGap={1}>
+                  <Svg source={gaugeSvg((t.tokens / heaviest) * 100, 80, 6, false, '#58a6ff')} alt="" width={80} height={6} />
+                  <Text dimColor>{formatTokens(t.tokens)}</Text>
+                  <Text>{t.name}</Text>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          {memory.length > 0 && (
+            <Box flexDirection="column">
+              <Text bold>Memory files</Text>
+              {memory.map(f => (
+                <Text key={f.path} dimColor>{formatTokens(f.tokens)}  {shortPath(f.path)}</Text>
+              ))}
+            </Box>
+          )}
+
+          {files.length > 0 && (
+            <Box flexDirection="column">
+              <Text bold>Edited this session ({files.length})</Text>
+              <Text dimColor>{files.slice(-6).map(shortPath).join('  ')}</Text>
+            </Box>
+          )}
+
+          <Box>
+            <Button key="close" label="Close" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />
+          </Box>
+        </Box>
+      )
+    }
+
     const percent = usage.context.percent ?? breakdown?.percentage ?? 0
     const columns = e.viewport?.columns ?? 80
     const gaugeWidth = Math.max(10, Math.min(40, columns - 24))
