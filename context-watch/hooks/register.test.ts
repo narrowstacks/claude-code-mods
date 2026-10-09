@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { resetsIn, statusText } from './register'
+import { mcpServers, resetsIn, statusText } from './register'
 
 test('status line shows fill, cost and every rate limit', async () => {
   const text = statusText({
@@ -114,4 +114,14 @@ test('says when a rate limit window resets', async () => {
   expect(resetsIn('2026-10-11T15:00:00Z', now)).toBe('resets in 3d 3h')
   expect(resetsIn('2026-10-08T12:25:00Z', now)).toBe('resets in 25m')
   expect(resetsIn(undefined, now)).toBe(undefined)
+})
+
+test('mcpServers shortens claude.ai connector UUIDs', () => {
+  const servers = mcpServers([
+    { serverName: '1a59c906-04da-521d-bda7-7f71b9f9e01c', tokens: 500, isLoaded: true },
+    { serverName: 'terminal', tokens: 900, isLoaded: true },
+    { serverName: 'terminal', tokens: 100, isLoaded: false },
+  ])
+  expect(servers.map(s => s.name)).toEqual(['terminal', 'connector 1a59c906'])
+  expect(servers[0].tools).toBe(1)
 })

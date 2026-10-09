@@ -36,11 +36,15 @@ export const stackSvg = (segments: Segment[], total: number, width = 600, height
     + `<g clip-path="url(#c)"><rect width="${width}" height="${height}" fill="#8b949e" fill-opacity="0.15"/>${rects.join('')}</g></svg>`
 }
 
+// claude.ai connectors register under a bare UUID, so shorten those to something readable.
+const serverLabel = (name: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(name) ? `connector ${name.slice(0, 8)}` : name
+
 // Loaded MCP tools summed by server, heaviest first; unloaded ones take no context yet.
 export const mcpServers = (tools: readonly { serverName: string; tokens: number; isLoaded: boolean }[], limit = 6) => {
   const byServer = new Map<string, { name: string; tokens: number; tools: number }>()
   for (const tool of tools.filter(t => t.isLoaded)) {
-    const server = byServer.get(tool.serverName) ?? { name: tool.serverName, tokens: 0, tools: 0 }
+    const server = byServer.get(tool.serverName) ?? { name: serverLabel(tool.serverName), tokens: 0, tools: 0 }
     server.tokens += tool.tokens
     server.tools += 1
     byServer.set(tool.serverName, server)
