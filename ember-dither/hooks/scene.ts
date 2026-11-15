@@ -1,8 +1,7 @@
 // Builds the backdrop: a vertical gradient from purple through red to orange, with radial dithered glows and diamonds drifting over it.
 //
-// Every dither pattern sits on one fixed grid. Motion is CSS (surfaces strip SVG
-// <animate>), and it moves only clip windows over still dithered layers, so
-// edges glide smoothly while each dither pixel stays put and crisp.
+// Motion is CSS transforms on plain groups: surfaces strip SVG <animate>, and a
+// live window does not repaint a clip path that moves on its own.
 
 // The base gradient's colors, dark enough to sit under text.
 export const COLORS = ['#26123d', '#3a0f1a', '#3b1c0b'] as const
@@ -68,8 +67,7 @@ const fill = (color: number, level: number) => `url(#p${color}_${level})`
 
 const round = (n: number) => Math.round(n)
 
-// A looping path of five waypoints (the last is the first), each with a scale
-// the shape breathes to.
+// A looping path of five waypoints (the last is the first).
 const waypoints = ({ x, y, wander, seed }: Shape) => {
   const points = [0, 1, 2, 3].map(i => {
     const angle = (i * Math.PI) / 2 + seed * 0.9
@@ -77,7 +75,6 @@ const waypoints = ({ x, y, wander, seed }: Shape) => {
     return {
       x: x + Math.cos(angle) * reach,
       y: y + Math.sin(angle) * reach * 0.8,
-      scale: 1 + 0.12 * Math.sin(i * 1.7 + seed),
     }
   })
   return [...points, points[0]!]
@@ -86,41 +83,34 @@ const waypoints = ({ x, y, wander, seed }: Shape) => {
 const diamondPoints = (x: number, y: number, r: number) =>
   `${round(x)},${round(y - r)} ${round(x + r * 0.8)},${round(y)} ${round(x)},${round(y + r)} ${round(x - r * 0.8)},${round(y)}`
 
-// The CSS that walks a shape along its waypoints, eased between each.
+// The CSS that walks a shape along its waypoints, eased between each. Only a
+// translation: a scale would stretch the dither pixels.
 const motion = (shape: Shape, s: number): string => {
   const path = waypoints(shape)
   const frames = path
-    .map((p, i) => `${(i / (path.length - 1)) * 100}%{transform:translate(${round(p.x)}px,${round(p.y)}px) scale(${p.scale.toFixed(3)})}`)
+    .map((p, i) => `${(i / (path.length - 1)) * 100}%{transform:translate(${round(p.x)}px,${round(p.y)}px)}`)
     .join('')
   const delay = (shape.seed * 17) % shape.seconds
   return `@keyframes m${s}{${frames}}.m${s}{animation:m${s} ${shape.seconds}s cubic-bezier(${EASE.replaceAll(' ', ',')}) -${delay}s infinite}`
 }
 
 // A shape is its rings stacked from the edge in, each denser than the last, so
-// it reads as a radial dithered gradient into whatever lies under it. Each ring
-// is a still dithered layer seen through a moving window (a clip path), so the
-// shape glides while every dither pixel stays on the fixed grid.
-const drawShape = (shape: Shape, s: number): { defs: string; body: string } => {
+// it reads as a radial dithered gradient into whatever lies under it. The whole
+// group moves, its dither with it. The start transform draws it in place where
+// CSS animation can't run.
+const drawShape = (shape: Shape, s: number): string => {
   const start = waypoints(shape)[0]!
   const rings = shape.color === VOID_INDEX ? VOID_RINGS : RINGS
-  const reach = round(shape.wander + shape.size * 1.2)
-  const defs: string[] = []
-  const body: string[] = []
-  rings.forEach((level, i) => {
-    const r = shape.size * (1 - (i / rings.length) * 0.8)
-    // A clip path holds shapes, not groups. The start transform draws the shape
-    // in place where CSS animation can't run.
-    const moving = `class="m${s}" transform="translate(${round(start.x)} ${round(start.y)})"`
-    const window =
-      shape.kind === 'glow'
-        ? `<circle r="${round(r)}" ${moving}/>`
-        : `<polygon points="${diamondPoints(0, 0, r)}" ${moving}/>`
-    defs.push(`<clipPath id="c${s}_${i}">${window}</clipPath>`)
-    body.push(
-      `<rect x="${shape.x - reach}" y="${shape.y - reach}" width="${reach * 2}" height="${reach * 2}" fill="${fill(shape.color, level)}" clip-path="url(#c${s}_${i})"/>`,
-    )
-  })
-  return { defs: defs.join(''), body: body.join('') }
+  const body = rings
+    .map((level, i) => {
+      const r = shape.size * (1 - (i / rings.length) * 0.8)
+      const paint = `fill="${fill(shape.color, level)}"`
+      return shape.kind === 'glow'
+        ? `<circle r="${round(r)}" ${paint}/>`
+        : `<polygon points="${diamondPoints(0, 0, r)}" ${paint}/>`
+    })
+    .join('')
+  return `<g class="m${s}" transform="translate(${round(start.x)} ${round(start.y)})">${body}</g>`
 }
 
 export const buildScene = (): string => {
@@ -155,9 +145,6 @@ export const buildScene = (): string => {
     }
   })
 
-  const shapes = SHAPES.map(drawShape)
-  defs.push(...shapes.map(shape => shape.defs))
-
   const style = [
     ...SHAPES.map(motion),
     '.spark{animation:twinkle 11s ease-in-out infinite}',
@@ -171,11 +158,11 @@ export const buildScene = (): string => {
     .join('')
 
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" preserveAspectRatio="xMidYMid slice" shape-rendering="crispEdges">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" shape-rendering="crispEdges">` +
     `<style>${style}</style><defs>${defs.join('')}</defs>` +
     `<rect width="${SIZE}" height="${SIZE}" fill="${COLORS[0]}"/>` +
     bands.join('') +
-    shapes.map(shape => shape.body).join('') +
+    SHAPES.map(drawShape).join('') +
     `${sparks}</svg>`
   )
 }

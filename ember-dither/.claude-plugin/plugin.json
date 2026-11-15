@@ -1,1 +1,1 @@
-{ "name": "ember-dither", "version": "0.4.0", "description": "/ember-dither on: a dark theme over a dithered gradient of deep purple, red and orange with drifting dithered glows and diamonds, per session", "types": "./types/index.d.ts" }
+{ "name": "ember-dither", "version": "0.4.1", "description": "/ember-dither on: a dark theme over a dithered gradient of deep purple, red and orange with drifting dithered glows and diamonds, per session", "types": "./types/index.d.ts" }
