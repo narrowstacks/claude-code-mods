@@ -71,6 +71,11 @@
       "name": "agent-models",
       "source": "./agent-models",
       "description": "Pins the model each subagent type runs on, set in /config or with /agent-models"
+    },
+    {
+      "name": "ember-dither",
+      "source": "./ember-dither",
+      "description": "Dark theme over a dithered purple, red and orange gradient with drifting dithered glows and diamonds (desktop and mobile apps)"
     }
   ]
 }
