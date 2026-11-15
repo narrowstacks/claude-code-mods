@@ -1,4 +1,5 @@
-import type { Register, ThemeSetArgs } from 'claude-code'
+import { atom, read, update } from 'claude-code'
+import type { EngineInterface, Register, ThemeSetArgs } from 'claude-code'
 
 import { makeColors } from './make-colors.js'
 import { buildScene } from './scene.js'
@@ -38,14 +39,49 @@ const LOOK: ThemeSetArgs = {
   backdrop: { scene: SCENE_ID, glass: { blur: 3, tint: '#120a15', opacity: 0.72 } },
 }
 
+// Whether this session wears the theme. Off until /ember-dither on; it outlives a
+// reload, so a reloaded or resumed session keeps its choice.
+const isOn = atom({ plugin: 'ember-dither', key: 'isOn' } as const, false)
+
+const USAGE = 'Usage: /ember-dither on | off'
+
+const wear = async ($: EngineInterface): Promise<string> => {
+  const unpainted = problems.find(line => line.startsWith("Desktop won't paint"))
+  if (unpainted !== undefined) {
+    return unpainted
+  }
+  const set = await $.theme.set(LOOK)
+  return set.isDrawn ? 'Ember dither is on for this session.' : `Ember dither is on, but nothing draws it here: ${set.reason}`
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    const unpainted = problems.find(line => line.startsWith("Desktop won't paint"))
-    if (unpainted !== undefined) {
-      $.ui.toast(unpainted)
+    await $.command.register({
+      name: 'ember-dither',
+      description: 'Turn the Ember dither theme on or off for this session. Args: on | off',
+    })
+    if (await read($, isOn)) {
+      await wear($)
     }
-    await $.theme.set(LOOK)
     return next(e)
+  })
+
+  on('command.run', { command: 'ember-dither' }, async ($, e) => {
+    const arg = e.args.trim().toLowerCase()
+    if (arg === 'on') {
+      await update($, isOn, () => true)
+      return { text: await wear($) }
+    }
+    if (arg === 'off') {
+      if (!(await read($, isOn))) {
+        return { text: 'Ember dither is already off for this session.' }
+      }
+      await update($, isOn, () => false)
+      await $.theme.clear()
+      return { text: 'Ember dither is off for this session.' }
+    }
+    const state = (await read($, isOn)) ? 'on' : 'off'
+    return { text: `Ember dither is ${state} for this session. ${USAGE}` }
   })
 
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {

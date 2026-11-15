@@ -75,7 +75,7 @@
     {
       "name": "ember-dither",
       "source": "./ember-dither",
-      "description": "Dark theme over a dithered purple, red and orange gradient with drifting dithered glows and diamonds (desktop and mobile apps)"
+      "description": "/ember-dither on: dark theme over a dithered purple, red and orange gradient with drifting dithered glows and diamonds, per session (desktop and mobile apps)"
     }
   ]
 }
